@@ -17,17 +17,55 @@ const uniforms = {
   time: { value: 0.0 } // animated time
 };
 
-// Create a full screen quad using a shader material
-const material = new THREE.ShaderMaterial({
-  uniforms,
-  vertexShader: `
-    varying vec2 vUv; // Pass UV coordinates to fragment shader
-    void main() {
-      vUv = uv;
-      gl_Position = vec4(position, 1.0); // Standard vertex transformation
-    }
-  `,
-  fragmentShader: `
+// Parse user poly
+function parsePolynomial(expr) {
+    expr = expr.replace(/\s+/g, '');
+    const terms = expr.match(/[+-]?[^+-]+/g); // separate by +/- terms
+  
+    if (!terms) return 'vec2(0.0, 0.0)';
+  
+    let glsl = terms.map(term => {
+      if (/^[+-]?\d*\.?\d*$/.test(term)) {
+        // real constant
+        return `vec2(${parseFloat(term)}, 0.0)`;
+      }
+  
+      const match = term.match(/^([+-]?[\d\.]*)?(x|y)(\^(\d+))?$/);
+      if (match) {
+        let [, coeff, variable, , power] = match;
+        coeff = coeff || '+1';
+        if (coeff === '+') coeff = '1';
+        if (coeff === '-') coeff = '-1';
+        power = parseInt(power || '1');
+  
+        let base = variable;
+        for (let i = 1; i < power; i++) {
+          base = `complexMul(${base}, ${variable})`;
+        }
+        return `complexMul(vec2(${coeff}, 0.0), ${base})`;
+      }
+  
+      if (term.includes('x') && term.includes('y')) {
+        return `complexMul(${term.replace(/([xy])/g, 'vec2($1, 0.0)')})`;
+      }
+  
+      return `vec2(0.0) /* unparsed: ${term} */`;
+    });
+    console.log(glsl.join(' + '));
+    return glsl.join(' + ');
+  }
+  
+
+function buildGLSLFunction(expr) {
+    const body = parsePolynomial(expr);
+    return `
+        vec2 f(vec2 x, vec2 y) {
+            return ${body};
+        }
+        `;
+}
+
+let baseShaderTemplate = `
     precision highp float;
     varying vec2 vUv;
     uniform vec2 epsilon;
@@ -68,13 +106,16 @@ const material = new THREE.ShaderMaterial({
     float arg(vec2 z) {
       return atan(z.y, z.x);
     }
+    
+    // REPLACE_F_FUNCTION
+    
     float fiberFunction(vec3 p) {
         vec4 s = stereographicInverse(p);
         vec2 x = s.xy;
         vec2 y = s.zw;
         float norm = dot(x, x) + dot(y, y);
         if (abs(norm - 1.0) > 0.1) return 1.0;
-        vec2 fxy = complexAdd(complexMul(x, x), complexPow3(y));
+        vec2 fxy = f(x, y); // Call dynamically defined function
         float mag = length(fxy);
         if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
         vec2 fhat = fxy / mag; // normalize f to unit circle
@@ -92,7 +133,7 @@ const material = new THREE.ShaderMaterial({
         vec2 y = s.zw;
         float norm = dot(x, x) + dot(y, y);
         if (abs(norm - 1.0) > 0.1) return 1.0;
-        vec2 fxy = complexAdd(complexMul(x, x), complexPow3(y));
+        vec2 fxy = f(x,y);
         return length(fxy);
       }
 
@@ -199,11 +240,33 @@ vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5; // multiply by something smaller to 
       gl_FragColor = vec4(color, 1.0);
     }
   `
+
+const userExpr = document.getElementById('polyInput').value;
+const fFunction = buildGLSLFunction(userExpr);
+
+const fullShader = baseShaderTemplate.replace('// REPLACE_F_FUNCTION', fFunction);
+
+// Create a full screen quad using a shader material
+const material = new THREE.ShaderMaterial({
+  uniforms,
+  vertexShader: `
+    varying vec2 vUv; // Pass UV coordinates to fragment shader
+    void main() {
+      vUv = uv;
+      gl_Position = vec4(position, 1.0); // Standard vertex transformation
+    }
+  `,
+  fragmentShader: fullShader
 });
+
+material.fragmentShader = fullShader;
+material.needsUpdate = true;
 
 const geometry = new THREE.PlaneGeometry(2, 2);
 const mesh = new THREE.Mesh(geometry, material);
 scene.add(mesh);
+
+uniforms.cameraMatrix = { value: new THREE.Matrix3() };
 
 let yaw = 0.0, pitch = 0.0;
 let isDragging = false, lastX = 0, lastY = 0;
@@ -223,7 +286,15 @@ canvas.addEventListener('mousemove', e => {
   }
 });
 
-uniforms.cameraMatrix = { value: new THREE.Matrix3() };
+document.getElementById('updatePoly').addEventListener('click', () => {
+    const userExpr = document.getElementById('polyInput').value;
+    const fFunction = buildGLSLFunction(userExpr);
+    const fullShader = baseShaderTemplate.replace('// REPLACE_F_FUNCTION', fFunction);
+  
+    material.fragmentShader = fullShader;
+    material.needsUpdate = true;
+  });
+  
 
 function animate(time) {
   uniforms.time.value = time * 0.001;
