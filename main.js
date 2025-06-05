@@ -15,8 +15,7 @@ const uniforms = {
   epsilon: { value: new THREE.Vector2(0.1, 0.0) }, // complex constant epsilon = 0.1
   theta: { value: Math.PI }, // initial angle for Milnor fiber
   time: { value: 0.0 }, // animated time
-  zoom: {value: 1.0},
-  useFarOrigin: {value: false}
+  zoom: {value: 1.0}
 };
 
 // Parse user poly
@@ -76,7 +75,6 @@ let baseShaderTemplate = `
     uniform vec2 resolution;
     uniform mat3 cameraMatrix;
     uniform float zoom;
-    uniform bool useFarOrigin;
 
 
     // Constants for raymarching
@@ -234,9 +232,7 @@ let baseShaderTemplate = `
     //   vec3 ro = vec3(0.0, 0.0, 3.0);
     //   vec3 rd = normalize(vec3(uv.x, uv.y, -2.0));
     // vec3 rd = normalize(vec3(uv.x, uv.y, -1.0)); // less aggressive dive
-    // vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
-
-    vec3 ro = cameraMatrix * vec3(0.0, 0.0, useFarOrigin ? 10.0 : 3.0);
+    vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
     vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));
 
 
@@ -495,10 +491,6 @@ slider.addEventListener('touchmove', (e) => {
 }, { passive: false });
 slider.addEventListener('touchend', () => draggingSlider = false);
 
-document.getElementById('farOriginToggle').addEventListener('change', (e) => {
-    uniforms.useFarOrigin.value = e.target.checked;
-  });
-  
 
 function animate(time) {
     if (!isPaused && !draggingSlider) {
