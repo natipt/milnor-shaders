@@ -120,7 +120,9 @@ let baseShaderTemplate = `
         float mag = length(fxy);
         if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
         vec2 fhat = fxy / mag; // normalize f to unit circle
-        float diff = mod(arg(fhat) - theta + 3.14159, 6.28318) - 3.14159;
+        // float pi = 3.1415926535897932384626433832795028841971693993751058209749445923078164062;
+        float pi = 3.14159265;
+        float diff = mod(arg(fhat) - theta + pi, 2.0 * pi) - pi;
         // float diff = mod(arg(fhat) - theta, 6.28318);
         return diff; // small only near the fiber
         // return sin(diff);
@@ -184,7 +186,7 @@ let baseShaderTemplate = `
             float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
             vec3 base = 0.5 + 0.5 * normal;
             vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
-      
+            
             // Make alpha depend on t: close to screen = low opacity
             float alpha = 1.0;
 
@@ -203,6 +205,7 @@ let baseShaderTemplate = `
       
           if (t > MAX_DIST) break;
       
+        //   reduce stepsize near the origin
         //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
         float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
 
@@ -281,20 +284,26 @@ canvas.addEventListener('mousemove', e => {
 
 // const ctx = canvas.getContext('2d');
 
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+// function resizeCanvas() {
+//   canvas.width = window.innerWidth;
+//   canvas.height = window.innerHeight;
 
   // Optional: Redraw or re-render if needed
 //   render();
-}
+// }
 
 // Call it once to set the size initially
 // resizeCanvas();
 
 // Resize again whenever the window size changes
-window.addEventListener('resize', resizeCanvas);
-
+window.addEventListener('resize', () => {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+  
+    renderer.setSize(width, height);
+    uniforms.resolution.value.set(width, height);
+  });
+  
 
 document.getElementById('updatePoly').addEventListener('click', () => {
     const userExpr = document.getElementById('polyInput').value;
