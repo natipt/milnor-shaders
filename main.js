@@ -81,6 +81,7 @@ let baseShaderTemplate = `
     #define SURFACE_THRESHOLD 0.005
     #define KNOT_THRESHOLD 0.1
     #define MAX_DIST 10.0
+    #define NEAR_CLIP 0.4
 
     vec4 stereographicInverse(vec3 p) {
       float denom = 1.0 + dot(p, p);
@@ -207,7 +208,10 @@ let baseShaderTemplate = `
             // vec3 color = ambient + base * diff + vec3(1.0) * spec;
             vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
           
-            return color;
+            // Fade out if too close to the camera
+            float fade = smoothstep(NEAR_CLIP, NEAR_CLIP + 0.2, t);
+            return color * fade;
+            // return color;
           }
         if (t > MAX_DIST) break;
 
