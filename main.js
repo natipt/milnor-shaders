@@ -68,22 +68,6 @@ const material = new THREE.ShaderMaterial({
     float arg(vec2 z) {
       return atan(z.y, z.x);
     }
-
-    // float fiberFunction(vec3 p) {
-    //     vec4 s = stereographicInverse(p);
-    //     vec2 x = s.xy;
-    //     vec2 y = s.zw;
-    //     float norm = dot(x, x) + dot(y, y);
-    //     if (abs(norm - 1.0) > 0.1) return 1.0;
-      
-    //     vec2 fxy = complexAdd(complexMul(x, x), complexPow3(y));
-    //     float mag = length(fxy);
-    //     if (mag < 1e-6) return 1.0; // skip near the knot
-      
-    //     vec2 fhat = fxy / mag; // normalize to unit complex number
-    //     float diff = mod(arg(fhat) - theta, 6.28318);
-    //     return diff;
-    //   }
     float fiberFunction(vec3 p) {
         vec4 s = stereographicInverse(p);
         vec2 x = s.xy;
@@ -96,8 +80,8 @@ const material = new THREE.ShaderMaterial({
         vec2 fhat = fxy / mag; // normalize f to unit circle
         float diff = mod(arg(fhat) - theta + 3.14159, 6.28318) - 3.14159;
         // float diff = mod(arg(fhat) - theta, 6.28318);
-        return diff; // small only near the fiber
-        // return sin(arg(fhat) - theta);
+        // return diff; // small only near the fiber
+        return sin(arg(fhat) - theta);
       }
       
       
@@ -140,17 +124,26 @@ const material = new THREE.ShaderMaterial({
         float d = fiberFunction(p);
         float k = knotFunction(p);
         // if (k < KNOT_THRESHOLD) return vec3(1.0, 0.0, 0.0); // red for trefoil knot
-        if (k < 0.05) {
+
+        // bigger knot radius near origin
+        float knotRadius = 0.04 + 0.3 * exp(-dot(p, p));
+        // float knotRadius = KNOT_THRESHOLD + 0.5 / (1.0 + 7.0 * dot(p, p));
+
+        if (k < knotRadius) {
+            // vec3 kn = getKnotNormal(p);
+            // vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
+            // vec3 viewDir = normalize(-rd);
+            // vec3 halfVec = normalize(lightDir + viewDir);
+            // float diff = max(dot(kn, lightDir), 0.0);
+            // float spec = pow(max(dot(kn, halfVec), 0.0), 64.0);
+            // // vec3 base = vec3(0.05, 0.05, 0.08);
+            // vec3 base = vec3(0.5);
+            // vec3 ambient = 0.1 * base;
+            // vec3 color = ambient + base * diff + vec3(1.0) * spec;
             vec3 kn = getKnotNormal(p);
-            vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
-            vec3 viewDir = normalize(-rd);
-            vec3 halfVec = normalize(lightDir + viewDir);
-            float diff = max(dot(kn, lightDir), 0.0);
-            float spec = pow(max(dot(kn, halfVec), 0.0), 64.0);
-            vec3 base = vec3(0.05, 0.05, 0.08);
-            vec3 ambient = 0.1 * base;
-            vec3 color = ambient + base * diff + vec3(1.0) * spec;
-            return color;
+            float shade = 0.5 + 0.5 * dot(kn, -rd);
+            return vec3(1.0); // matte white with diffuse lighting only
+            // return color;
           }
         // if (d < 0.0) return vec3(1.0, 0.0, 0.0); // highlight negative region in red
 
@@ -175,7 +168,12 @@ const material = new THREE.ShaderMaterial({
             return color;
           }
         if (t > MAX_DIST) break;
-        t += min(d, k) * 0.5;
+
+        // reduce stepsize near origin
+        float stepSize = clamp(min(abs(d), k), 0.01, 0.2);
+        t += stepSize;
+
+        // t += min(d, k) * 0.5;
       }
       return vec3(0.0);
     }
