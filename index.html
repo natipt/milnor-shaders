@@ -1,16 +1,4 @@
-<!doctype html>
-<!-- <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite App</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
-</html> -->
+
 
 <!DOCTYPE html>
 <html lang="en">
@@ -19,12 +7,72 @@
   <title>Milnor Shader</title>
   <style>
     body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
+    canvas {
+  display: block;
+  height: 100vh;
+  width: 100vw;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
+#milnorInput {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* background-color: rgba(255, 255, 255, 0.97); */
+  border-radius: 30px;
+  padding: 8px 20px;
+  display: flex;
+  gap: 10px;
+  z-index: 10;
+  font-family: 'hkgrotesk', sans-serif;
+  font-size: 17px;
+}
+
+#polyInput {
+  border: none;
+  outline: none;
+  font-size: 16px;
+  padding: 8px 12px;
+  border-radius: 20px;
+  background-color: #f2f3f5;
+  font-family: inherit;
+  width: 200px;
+  transition: background-color 0.2s ease;
+  box-shadow: 0px 1px 15px rgba(0, 0, 0, 0.1);
+
+}
+#polyInput:focus {
+  background-color: #e8eaed;
+}
+
+#updatePoly {
+  border: none;
+  font-size: 15px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  background-color: #000;
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.2s ease;
+  box-shadow: 0px 1px 15px rgba(0, 0, 0, 0.1);
+
+}
+#updatePoly:hover {
+  background-color: #333;
+}
+
   </style>
 </head>
 <body>
+  <div id="milnorInput">
   <input id="polyInput" type="text" value="x^2 + y^3" />
 <button id="updatePoly">Update Polynomial</button>
+</div>
 
   <canvas id="canvas"></canvas>
   <script type="module" src="main.js"></script>

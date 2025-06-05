@@ -157,18 +157,28 @@ let baseShaderTemplate = `
 
       vec3 raymarch(vec3 ro, vec3 rd) {
         float t = 0.0;
-        bool hitFront = false;
-        vec3 frontColor = vec3(0.0);
-        float frontOpacity = 0.0;
+        vec3 accumulatedColor = vec3(0.0);
+        float accumulatedAlpha = 0.0;
       
-        for (int i = 0; i < MAX_STEPS; i++) {
+        for (int i = 0; i < MAX_STEPS && accumulatedAlpha < 1.0; i++) {
           vec3 p = ro + t * rd;
           float d = fiberFunction(p);
           float k = knotFunction(p);
       
           float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
       
-          if (!hitFront && d < SURFACE_THRESHOLD) {
+          if (k < knotRadius) {
+            vec3 kn = getKnotNormal(p);
+            float shade = 0.5 + 0.5 * dot(kn, -rd);
+            vec3 knotColor = vec3(1.0) * shade;
+            // Blend the knot in too
+            float alpha = 1.0;
+            accumulatedColor = mix(accumulatedColor, knotColor, alpha * (1.0 - accumulatedAlpha));
+            accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
+            break;
+          }
+      
+          if (d < SURFACE_THRESHOLD) {
             vec3 normal = getNormal(p);
             vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
             vec3 viewDir = normalize(-rd);
@@ -177,22 +187,20 @@ let baseShaderTemplate = `
             vec3 base = 0.5 + 0.5 * normal;
             vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
       
+            // Make alpha depend on t: close to screen = low opacity
+            float alpha = 1.0;
+
             if (t < 0.6) {
-              // too close, treat as transparent layer
-              frontOpacity = smoothstep(0.3, 0.6, t);
-              frontColor = color;
-              hitFront = true;
-            } else {
-              return color; // normal case, return immediately
-            }
-          }
+                alpha = smoothstep(0.3, 0.6, t) * 0.7;
+                if (alpha < 0.01) {
+                  t += 0.01; // skip this hit entirely
+                  continue;
+                }
+              }
       
-          if (k < knotRadius) {
-            vec3 kn = getKnotNormal(p);
-            float shade = 0.5 + 0.5 * dot(kn, -rd);
-            vec3 base = vec3(1.0);
-            vec3 color = base * shade;
-            return hitFront ? mix(color * 0.4, frontColor, frontOpacity) : color;
+            // Blend color into accumulator
+            accumulatedColor = mix(accumulatedColor, color, alpha * (1.0 - accumulatedAlpha));
+            accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
           }
       
           if (t > MAX_DIST) break;
@@ -201,8 +209,10 @@ let baseShaderTemplate = `
           t += stepSize;
         }
       
-        return hitFront ? frontColor * frontOpacity : vec3(0.0);
+        return accumulatedColor;
       }
+      
+      
       
 
     void main() {
@@ -268,6 +278,23 @@ canvas.addEventListener('mousemove', e => {
     lastY = e.clientY;
   }
 });
+
+// const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // Optional: Redraw or re-render if needed
+//   render();
+}
+
+// Call it once to set the size initially
+// resizeCanvas();
+
+// Resize again whenever the window size changes
+window.addEventListener('resize', resizeCanvas);
+
 
 document.getElementById('updatePoly').addEventListener('click', () => {
     const userExpr = document.getElementById('polyInput').value;
