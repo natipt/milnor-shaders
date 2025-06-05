@@ -155,76 +155,55 @@ let baseShaderTemplate = `
       }
   
 
-    vec3 raymarch(vec3 ro, vec3 rd) {
-      float t = 0.0;
-      for (int i = 0; i < MAX_STEPS; i++) {
-        vec3 p = ro + t * rd;
-        // if (t < 1.5) {
-        //     t += 0.05;
-        //     continue;
-        //   }
-        float d = fiberFunction(p);
-        float k = knotFunction(p);
-        // if (k < KNOT_THRESHOLD) return vec3(1.0, 0.0, 0.0); // red for trefoil knot
-
-        // bigger knot radius near origin
-        // float knotRadius = 0.04 + 0.3 * exp(-dot(p, p));
-        float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
-        // float knotRadius = KNOT_THRESHOLD + 0.5 / (1.0 + 7.0 * dot(p, p));
-
-        if (k < knotRadius) {
-            // vec3 kn = getKnotNormal(p);
-            // vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
-            // vec3 viewDir = normalize(-rd);
-            // vec3 halfVec = normalize(lightDir + viewDir);
-            // float diff = max(dot(kn, lightDir), 0.0);
-            // float spec = pow(max(dot(kn, halfVec), 0.0), 64.0);
-            // // vec3 base = vec3(0.05, 0.05, 0.08);
-            // vec3 base = vec3(0.5);
-            // vec3 ambient = 0.1 * base;
-            // vec3 color = ambient + base * diff + vec3(1.0) * spec;
-            vec3 kn = getKnotNormal(p);
-            float shade = 0.5 + 0.5 * dot(kn, -rd);
-            return vec3(1.0); // matte white with diffuse lighting only
-            // return color;
-          }
-        // if (d < 0.0) return vec3(1.0, 0.0, 0.0); // highlight negative region in red
-
-        if (d < SURFACE_THRESHOLD) {
+      vec3 raymarch(vec3 ro, vec3 rd) {
+        float t = 0.0;
+        bool hitFront = false;
+        vec3 frontColor = vec3(0.0);
+        float frontOpacity = 0.0;
+      
+        for (int i = 0; i < MAX_STEPS; i++) {
+          vec3 p = ro + t * rd;
+          float d = fiberFunction(p);
+          float k = knotFunction(p);
+      
+          float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
+      
+          if (!hitFront && d < SURFACE_THRESHOLD) {
             vec3 normal = getNormal(p);
-            // if (dot(normal, -rd) <= 0.0) {
-            //     t += 0.01;
-            //     continue;
-            //   }
             vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
             vec3 viewDir = normalize(-rd);
             vec3 halfVec = normalize(lightDir + viewDir);
-          
-            // float diff = max(dot(normal, lightDir), 0.0);
             float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
-          
             vec3 base = 0.5 + 0.5 * normal;
-            // vec3 ambient = 0.1 * base; // ambient color
-            // vec3 color = ambient + base * diff + vec3(1.0) * spec;
             vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
-          
-            // Fade out if too close to the camera
-            float fade = smoothstep(NEAR_CLIP, NEAR_CLIP + 0.2, t);
-            return color * fade;
-            // return color;
+      
+            if (t < 0.6) {
+              // too close, treat as transparent layer
+              frontOpacity = smoothstep(0.3, 0.6, t);
+              frontColor = color;
+              hitFront = true;
+            } else {
+              return color; // normal case, return immediately
+            }
           }
-        if (t > MAX_DIST) break;
-
-        // reduce stepsize near origin
-        // float stepSize = clamp(min(abs(d), k), 0.01, 0.2);
-        float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
-
-        t += stepSize;
-
-        // t += min(d, k) * 0.5;
+      
+          if (k < knotRadius) {
+            vec3 kn = getKnotNormal(p);
+            float shade = 0.5 + 0.5 * dot(kn, -rd);
+            vec3 base = vec3(1.0);
+            vec3 color = base * shade;
+            return hitFront ? mix(color * 0.4, frontColor, frontOpacity) : color;
+          }
+      
+          if (t > MAX_DIST) break;
+      
+          float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
+          t += stepSize;
+        }
+      
+        return hitFront ? frontColor * frontOpacity : vec3(0.0);
       }
-      return vec3(0.0);
-    }
+      
 
     void main() {
     //   vec2 uv = vUv * 2.0 - 1.0;
