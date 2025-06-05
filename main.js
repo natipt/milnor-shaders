@@ -38,11 +38,11 @@ const material = new THREE.ShaderMaterial({
 
 
     // Constants for raymarching
-    #define MAX_STEPS 100
+    #define MAX_STEPS 200
     // #define SURFACE_THRESHOLD 0.01
     #define SURFACE_THRESHOLD 0.005
-    #define KNOT_THRESHOLD 0.02
-    #define MAX_DIST 6.0
+    #define KNOT_THRESHOLD 0.1
+    #define MAX_DIST 10.0
 
     vec4 stereographicInverse(vec3 p) {
       float denom = 1.0 + dot(p, p);
@@ -95,28 +95,22 @@ const material = new THREE.ShaderMaterial({
         if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
         vec2 fhat = fxy / mag; // normalize f to unit circle
         float diff = mod(arg(fhat) - theta + 3.14159, 6.28318) - 3.14159;
-        return diff; // small only near the fiber
+        // float diff = mod(arg(fhat) - theta, 6.28318);
+        // return diff; // small only near the fiber
+        return sin(arg(fhat) - theta);
       }
       
       
 
       float knotFunction(vec3 p) {
-        float minDist = 1.0;
-        for (int i = 0; i < 64; i++) {
-          float t = 6.28318 * float(i) / 64.0;
-          vec2 xt = sqrt(3.0) * vec2(cos(3.0 * t), sin(3.0 * t));
-          vec2 yt = -sqrt(2.0) * vec2(cos(2.0 * t), sin(2.0 * t));
-          float denom = 1.0 - xt.x * xt.x - xt.y * xt.y - yt.x * yt.x - yt.y * yt.y;
-          vec3 pt = vec3(
-            xt.x / denom,
-            xt.y / denom,
-            yt.x / denom
-          );
-          float d = length(p - pt);
-          minDist = min(minDist, d);
-        }
-        return minDist;
-          }
+        vec4 s = stereographicInverse(p);
+        vec2 x = s.xy;
+        vec2 y = s.zw;
+        float norm = dot(x, x) + dot(y, y);
+        if (abs(norm - 1.0) > 0.1) return 1.0;
+        vec2 fxy = complexAdd(complexMul(x, x), complexPow3(y));
+        return length(fxy);
+      }
 
     vec3 getNormal(vec3 p) {
       float h = 0.001;
@@ -126,6 +120,15 @@ const material = new THREE.ShaderMaterial({
       return normalize(vec3(dx, dy, dz));
     }
 
+    vec3 getKnotNormal(vec3 p) {
+        float h = 0.001;
+        float dx = knotFunction(p + vec3(h,0,0)) - knotFunction(p - vec3(h,0,0));
+        float dy = knotFunction(p + vec3(0,h,0)) - knotFunction(p - vec3(0,h,0));
+        float dz = knotFunction(p + vec3(0,0,h)) - knotFunction(p - vec3(0,0,h));
+        return normalize(vec3(dx, dy, dz));
+      }
+  
+
     vec3 raymarch(vec3 ro, vec3 rd) {
       float t = 0.0;
       for (int i = 0; i < MAX_STEPS; i++) {
@@ -133,6 +136,12 @@ const material = new THREE.ShaderMaterial({
         float d = fiberFunction(p);
         float k = knotFunction(p);
         // if (k < KNOT_THRESHOLD) return vec3(1.0, 0.0, 0.0); // red for trefoil knot
+        if (k < 0.05) {
+            vec3 kn = getKnotNormal(p);
+            float shade = 0.5 + 0.5 * dot(kn, -rd);
+            return vec3(1.0, 0.5, 0.2) * shade;
+          }
+        // if (d < 0.0) return vec3(1.0, 0.0, 0.0); // highlight negative region in red
         if (d < SURFACE_THRESHOLD) {
             vec3 normal = getNormal(p);
             float facing = dot(normal, -rd);
@@ -195,6 +204,7 @@ uniforms.cameraMatrix = { value: new THREE.Matrix3() };
 function animate(time) {
   uniforms.time.value = time * 0.001;
   uniforms.theta.value = (time * 0.0003) % (2.0 * Math.PI);
+// uniforms.theta.value = 0.0;
   uniforms.resolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
   const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
 const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
