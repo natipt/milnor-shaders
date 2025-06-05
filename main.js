@@ -14,7 +14,8 @@ camera.position.z = 1;
 const uniforms = {
   epsilon: { value: new THREE.Vector2(0.1, 0.0) }, // complex constant epsilon = 0.1
   theta: { value: Math.PI }, // initial angle for Milnor fiber
-  time: { value: 0.0 } // animated time
+  time: { value: 0.0 }, // animated time
+  zoom: {value: 1.0}
 };
 
 // Parse user poly
@@ -73,6 +74,7 @@ let baseShaderTemplate = `
     uniform float time;
     uniform vec2 resolution;
     uniform mat3 cameraMatrix;
+    uniform float zoom;
 
 
     // Constants for raymarching
@@ -224,7 +226,7 @@ let baseShaderTemplate = `
     //   vec2 uv = vUv * 2.0 - 1.0;
     // vec2 uv = (vUv * 2.0 - 1.0) * 0.5;
     vec2 aspect = vec2(resolution.x / resolution.y, 1.0);
-vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5; // multiply by something smaller to make it bigger
+    vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5 / zoom; // multiply by something smaller to make it bigger
 
 
     //   vec3 ro = vec3(0.0, 0.0, 3.0);
@@ -329,7 +331,7 @@ window.addEventListener('resize', () => {
   
     renderer.setSize(width, height);
     uniforms.resolution.value.set(width, height);
-  });
+});
   
 
 document.getElementById('updatePoly').addEventListener('click', () => {
@@ -339,23 +341,29 @@ document.getElementById('updatePoly').addEventListener('click', () => {
   
     material.fragmentShader = fullShader;
     material.needsUpdate = true;
-  });
+});
+
+const zoomSpeed = 0.025;
+window.addEventListener('wheel', e => {
+    uniforms.zoom.value *= e.deltaY > 0 ? (1.0 + zoomSpeed) :  (1.0 - zoomSpeed);
+    uniforms.zoom.value = Math.max(0.1, Math.min(5.0, uniforms.zoom.value));
+});
   
 
 function animate(time) {
-  uniforms.time.value = time * 0.001;
-  uniforms.theta.value = (time * 0.0003) % (2.0 * Math.PI);
-// uniforms.theta.value = 0.0;
-  uniforms.resolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
-  const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
-const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
-const xAxis = new THREE.Vector3(cosY, 0, -sinY);
-const yAxis = new THREE.Vector3(sinY * sinP, cosP, cosY * sinP);
-const zAxis = new THREE.Vector3(sinY * cosP, -sinP, cosP * cosY);
-uniforms.cameraMatrix.value.set(
-  xAxis.x, yAxis.x, zAxis.x,
-  xAxis.y, yAxis.y, zAxis.y,
-  xAxis.z, yAxis.z, zAxis.z
+    uniforms.time.value = time * 0.001;
+    uniforms.theta.value = (time * 0.0003) % (2.0 * Math.PI);
+    // uniforms.theta.value = 0.0;
+    uniforms.resolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
+    const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
+    const xAxis = new THREE.Vector3(cosY, 0, -sinY);
+    const yAxis = new THREE.Vector3(sinY * sinP, cosP, cosY * sinP);
+    const zAxis = new THREE.Vector3(sinY * cosP, -sinP, cosP * cosY);
+    uniforms.cameraMatrix.value.set(
+    xAxis.x, yAxis.x, zAxis.x,
+    xAxis.y, yAxis.y, zAxis.y,
+    xAxis.z, yAxis.z, zAxis.z
 );
 
   renderer.render(scene, camera);
