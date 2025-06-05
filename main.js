@@ -170,7 +170,7 @@ let baseShaderTemplate = `
           if (k < knotRadius) {
             vec3 kn = getKnotNormal(p);
             // float facing = dot(kn, -rd);
-            vec3 color = vec3(1.0); // white base, modulated by normal
+            vec3 color = vec3(1.0);
             return color;
         }
         
