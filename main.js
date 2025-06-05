@@ -133,11 +133,6 @@ const material = new THREE.ShaderMaterial({
       float t = 0.0;
       for (int i = 0; i < MAX_STEPS; i++) {
         vec3 p = ro + t * rd;
-        // clip points too close to cam
-        if (t < 0.3) {
-            t += 0.1;
-            continue;
-        }
         float d = fiberFunction(p);
         float k = knotFunction(p);
         // if (k < KNOT_THRESHOLD) return vec3(1.0, 0.0, 0.0); // red for trefoil knot
@@ -147,7 +142,7 @@ const material = new THREE.ShaderMaterial({
             return vec3(1.0, 0.5, 0.2) * shade;
           }
         // if (d < 0.0) return vec3(1.0, 0.0, 0.0); // highlight negative region in red
-        if (abs(d) < SURFACE_THRESHOLD) {
+        if (d < SURFACE_THRESHOLD) {
             vec3 normal = getNormal(p);
             vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0)); // light direction
             vec3 viewDir = normalize(-rd);
@@ -156,12 +151,10 @@ const material = new THREE.ShaderMaterial({
             float diff = max(dot(normal, lightDir), 0.0);
             float spec = pow(max(dot(normal, halfVec), 0.0), 64.0); // glossy exponent
           
-            vec3 base = vec3(0.3, 0.6, 1.0); // base color
+            vec3 base = 0.5 + 0.5 * normal; // brighter from front side
             vec3 color = base * diff + vec3(1.0) * spec;
-          
             return color;
-          }
-          
+        }
         if (t > MAX_DIST) break;
         t += min(d, k) * 0.5;
       }
