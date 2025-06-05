@@ -80,8 +80,8 @@ const material = new THREE.ShaderMaterial({
         vec2 fhat = fxy / mag; // normalize f to unit circle
         float diff = mod(arg(fhat) - theta + 3.14159, 6.28318) - 3.14159;
         // float diff = mod(arg(fhat) - theta, 6.28318);
-        // return diff; // small only near the fiber
-        return sin(arg(fhat) - theta);
+        return diff; // small only near the fiber
+        // return sin(diff);
       }
       
       
