@@ -179,7 +179,7 @@ let baseShaderTemplate = `
             }
       
             if (d < SURFACE_THRESHOLD) {
-                // if (cos(d) < 0.0) {
+                // if (t < 1.0) {
                 //     t += 0.002;
                 //     continue;
                 // }
@@ -268,7 +268,8 @@ scene.add(mesh);
 
 uniforms.cameraMatrix = { value: new THREE.Matrix3() };
 
-let yaw = 0.0, pitch = 0.0;
+// let yaw = 0.0, pitch = 0.0;
+let yaw = 0.54, pitch = -0.285;
 let isDragging = false, lastX = 0, lastY = 0;
 
 canvas.addEventListener('mousedown', e => {
@@ -278,12 +279,12 @@ canvas.addEventListener('mousedown', e => {
 });
 canvas.addEventListener('mouseup', () => isDragging = false);
 canvas.addEventListener('mousemove', e => {
-  if (isDragging) {
-    yaw += (e.clientX - lastX) * 0.005;
-    pitch += (e.clientY - lastY) * 0.005;
-    lastX = e.clientX;
-    lastY = e.clientY;
-  }
+    if (isDragging) {
+        yaw += (e.clientX - lastX) * 0.005;
+        pitch += (e.clientY - lastY) * 0.005;
+        lastX = e.clientX;
+        lastY = e.clientY;
+    }
 });
 
 // MOBILE SCROLLING
@@ -295,13 +296,13 @@ canvas.addEventListener('touchstart', e => {
     }
 });
   
-  canvas.addEventListener('touchmove', e => {
+canvas.addEventListener('touchmove', e => {
     if (isDragging && e.touches.length === 1) {
-      const touch = e.touches[0];
-      yaw += (touch.clientX - lastX) * 0.005;
-      pitch += (touch.clientY - lastY) * 0.005;
-      lastX = touch.clientX;
-      lastY = touch.clientY;
+        const touch = e.touches[0];
+        yaw += (touch.clientX - lastX) * 0.005;
+        pitch += (touch.clientY - lastY) * 0.005;
+        lastX = touch.clientX;
+        lastY = touch.clientY;
     }
 });
   
@@ -491,7 +492,6 @@ slider.addEventListener('touchmove', (e) => {
 }, { passive: false });
 slider.addEventListener('touchend', () => draggingSlider = false);
 
-
 function animate(time) {
     if (!isPaused && !draggingSlider) {
         uniforms.time.value = time * 0.001;
@@ -514,6 +514,7 @@ function animate(time) {
         xAxis.y, yAxis.y, zAxis.y,
         xAxis.z, yAxis.z, zAxis.z
     );
+    // console.log(uniforms.cameraMatrix.value);
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
