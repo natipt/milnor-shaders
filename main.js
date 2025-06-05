@@ -169,14 +169,12 @@ let baseShaderTemplate = `
       
           if (k < knotRadius) {
             vec3 kn = getKnotNormal(p);
-            float shade = 0.5 + 0.5 * dot(kn, -rd);
-            vec3 knotColor = vec3(1.0) * shade;
-            // Blend the knot in too
-            float alpha = 1.0;
-            accumulatedColor = mix(accumulatedColor, knotColor, alpha * (1.0 - accumulatedAlpha));
-            accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
-            break;
-          }
+            // float facing = dot(kn, -rd);
+            vec3 color = vec3(1.0); // white base, modulated by normal
+            return color;
+        }
+        
+        
       
           if (d < SURFACE_THRESHOLD) {
             vec3 normal = getNormal(p);
@@ -205,7 +203,9 @@ let baseShaderTemplate = `
       
           if (t > MAX_DIST) break;
       
-          float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
+        //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
+        float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
+
           t += stepSize;
         }
       
