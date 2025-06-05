@@ -348,7 +348,28 @@ window.addEventListener('wheel', e => {
     uniforms.zoom.value *= e.deltaY > 0 ? (1.0 + zoomSpeed) :  (1.0 - zoomSpeed);
     uniforms.zoom.value = Math.max(0.1, Math.min(5.0, uniforms.zoom.value));
 });
-  
+
+let touchZoomDistance = null;
+canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (touchZoomDistance != null) {
+            const scale = distance / touchZoomDistance; 
+            uniforms.zoom.value /= scale;
+            uniforms.zoom.value = Math.max(0.1, Math.min(5.0, uniforms.zoom.value));
+        }
+
+        touchZoomDistance = distance;
+    }
+}, {passive: false});
+
+canvas.addEventListener('touchend', () => {
+    touchZoomDistance = null;
+});
 
 function animate(time) {
     uniforms.time.value = time * 0.001;
