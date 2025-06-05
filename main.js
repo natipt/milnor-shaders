@@ -40,7 +40,7 @@ const material = new THREE.ShaderMaterial({
     // Constants for raymarching
     #define MAX_STEPS 100
     // #define SURFACE_THRESHOLD 0.01
-    #define SURFACE_THRESHOLD 0.01
+    #define SURFACE_THRESHOLD 0.005
     #define KNOT_THRESHOLD 0.02
     #define MAX_DIST 6.0
 
@@ -95,7 +95,7 @@ const material = new THREE.ShaderMaterial({
         if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
         vec2 fhat = fxy / mag; // normalize f to unit circle
         float diff = mod(arg(fhat) - theta + 3.14159, 6.28318) - 3.14159;
-        return abs(diff); // small only near the fiber
+        return diff; // small only near the fiber
       }
       
       
@@ -133,10 +133,6 @@ const material = new THREE.ShaderMaterial({
         float d = fiberFunction(p);
         float k = knotFunction(p);
         // if (k < KNOT_THRESHOLD) return vec3(1.0, 0.0, 0.0); // red for trefoil knot
-        // if (k < KNOT_THRESHOLD) {
-        //     float t = k / KNOT_THRESHOLD;
-        //     return mix(vec3(1.0, 0.5, 0.0), vec3(1.0, 0.0, 0.0), t); // gradient orange to red tube
-        //   }
         if (d < SURFACE_THRESHOLD) {
             vec3 normal = getNormal(p);
             float facing = dot(normal, -rd);
