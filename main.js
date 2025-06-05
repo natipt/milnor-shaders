@@ -15,7 +15,8 @@ const uniforms = {
   epsilon: { value: new THREE.Vector2(0.1, 0.0) }, // complex constant epsilon = 0.1
   theta: { value: Math.PI }, // initial angle for Milnor fiber
   time: { value: 0.0 }, // animated time
-  zoom: {value: 1.0}
+  zoom: {value: 1.0},
+  useFarOrigin: {value: false}
 };
 
 // Parse user poly
@@ -75,6 +76,7 @@ let baseShaderTemplate = `
     uniform vec2 resolution;
     uniform mat3 cameraMatrix;
     uniform float zoom;
+    uniform bool useFarOrigin;
 
 
     // Constants for raymarching
@@ -232,7 +234,9 @@ let baseShaderTemplate = `
     //   vec3 ro = vec3(0.0, 0.0, 3.0);
     //   vec3 rd = normalize(vec3(uv.x, uv.y, -2.0));
     // vec3 rd = normalize(vec3(uv.x, uv.y, -1.0)); // less aggressive dive
-    vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
+    // vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
+
+    vec3 ro = cameraMatrix * vec3(0.0, 0.0, useFarOrigin ? 10.0 : 3.0);
     vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));
 
 
@@ -371,9 +375,141 @@ canvas.addEventListener('touchend', () => {
     touchZoomDistance = null;
 });
 
+// ==================== SLIDER + PAUSE FUNCTIONALITY ====================
+const slider = document.getElementById('phaseSlider');
+const ctx = slider.getContext('2d');
+let draggingSlider = false;
+let manualTheta = null;
+let thetaWhenDragStarted = 0;
+let timeWhenDragStarted = 0;
+let thetaOffset = 0;
+let isPaused = false;
+
+
+function drawPhaseSlider(theta) {
+    const w = slider.width = slider.clientWidth;
+    const h = slider.height = slider.clientHeight;
+    const r = w / 2;
+    ctx.clearRect(0, 0, w, h);
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(r, r, r - 10, 0, 2 * Math.PI); // circle centered at (r, r), radius = r - 5
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Phase indicator
+    const angle = theta;
+    const x = r + (r - 10) * Math.cos(angle);
+    const y = r + (r - 10) * Math.sin(angle);
+    
+    // Border
+    ctx.beginPath();
+    ctx.arc(x, y, 7, 0, 2 * Math.PI);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+
+    // Fill
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ccccff';
+    ctx.fill();
+
+    // Draw center pause/play icon
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.fillStyle = '#fff';
+
+    if (isPaused) {
+        // Draw play triangle
+        ctx.beginPath();
+        ctx.moveTo(-5, -7);
+        ctx.lineTo(7, 0);
+        ctx.lineTo(-5, 7);
+        ctx.closePath();
+        ctx.fill();
+    } else {
+        // Draw pause bars
+        ctx.fillRect(-6, -7, 3, 14);
+        ctx.fillRect(3, -7, 3, 14);
+    }
+    ctx.restore();
+
+}
+
+function getAngleFromCoords(x, y) {
+    const rect = slider.getBoundingClientRect();
+    const dx = x - rect.left - slider.clientWidth / 2;
+    const dy = y - rect.top - slider.clientHeight / 2;
+    return Math.atan2(dy, dx);
+}
+
+// Handle dragging
+slider.addEventListener('mousedown', (e) => {
+    const rect = slider.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = e.clientX - centerX;
+    const dy = e.clientY - centerY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 15) { // inside pause/play button radius
+        console.log("Pause pressed");
+        isPaused = !isPaused;
+        console.log(isPaused);
+        drawPhaseSlider(); // redraw icon
+        return;
+    }
+    else {
+        draggingSlider = true;
+        timeWhenDragStarted = performance.now();
+        thetaWhenDragStarted = uniforms.theta.value;
+        manualTheta = getAngleFromCoords(e.clientX, e.clientY);
+    }
+    e.preventDefault();
+});
+window.addEventListener('mousemove', (e) => {
+    if (draggingSlider) {
+        manualTheta = getAngleFromCoords(e.clientX, e.clientY);
+    } 
+});
+window.addEventListener('mouseup', () => {
+    draggingSlider = false;
+    const elapsed = performance.now() - timeWhenDragStarted;
+    thetaOffset = uniforms.theta.value - 0.0003 * (performance.now()); // track where to resume from
+    manualTheta = null;
+});
+  
+// Touch events for mobile
+slider.addEventListener('touchstart', (e) => {
+  draggingSlider = true;
+  const touch = e.touches[0];
+  manualTheta = getAngleFromCoords(touch.clientX, touch.clientY);
+  e.preventDefault();
+}, { passive: false });
+slider.addEventListener('touchmove', (e) => {
+  if (draggingSlider) {
+    const touch = e.touches[0];
+    manualTheta = getAngleFromCoords(touch.clientX, touch.clientY);
+  }
+}, { passive: false });
+slider.addEventListener('touchend', () => draggingSlider = false);
+
+document.getElementById('farOriginToggle').addEventListener('change', (e) => {
+    uniforms.useFarOrigin.value = e.target.checked;
+  });
+  
+
 function animate(time) {
-    uniforms.time.value = time * 0.001;
-    uniforms.theta.value = (time * 0.0003) % (2.0 * Math.PI);
+    if (!isPaused && !draggingSlider) {
+        uniforms.time.value = time * 0.001;
+        uniforms.theta.value = (0.0003 * time + thetaOffset) % (2.0 * Math.PI);
+    } else if (draggingSlider && manualTheta !== null) {
+        uniforms.theta.value = manualTheta < 0 ? manualTheta + 2 * Math.PI : manualTheta;
+    }
+
+    drawPhaseSlider(uniforms.theta.value);
+
     // uniforms.theta.value = 0.0;
     uniforms.resolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
     const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
@@ -382,14 +518,22 @@ function animate(time) {
     const yAxis = new THREE.Vector3(sinY * sinP, cosP, cosY * sinP);
     const zAxis = new THREE.Vector3(sinY * cosP, -sinP, cosP * cosY);
     uniforms.cameraMatrix.value.set(
-    xAxis.x, yAxis.x, zAxis.x,
-    xAxis.y, yAxis.y, zAxis.y,
-    xAxis.z, yAxis.z, zAxis.z
-);
+        xAxis.x, yAxis.x, zAxis.x,
+        xAxis.y, yAxis.y, zAxis.y,
+        xAxis.z, yAxis.z, zAxis.z
+    );
 
-  renderer.render(scene, camera);
-  requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
 }
   
 animate();
+
+
+
+
+
+
+
+
 

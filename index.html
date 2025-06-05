@@ -7,7 +7,7 @@
   <title>Milnor Shader</title>
   <style>
     body { margin: 0; overflow: hidden; }
-    canvas {
+    canvas#milnorFibration {
   display: block;
   height: 100vh;
   width: 100vw;
@@ -30,6 +30,14 @@
   z-index: 10;
   font-family: 'hkgrotesk', sans-serif;
   font-size: 17px;
+}
+
+#originMenu {
+  position: absolute;
+  top: 80px;
+  left:50%;
+  transform: translateX(-50%);
+  font-family: 'hkgrotesk', sans-serif;s
 }
 
 #polyInput {
@@ -73,8 +81,13 @@
   <input id="polyInput" type="text" value="x^2 + y^3" />
 <button id="updatePoly">Update Polynomial</button>
 </div>
+<label id="originMenu">
+  <input type="checkbox" id="farOriginToggle"> Far Origin
+</label>
 
-  <canvas id="canvas"></canvas>
+<canvas id="phaseSlider" style="position: absolute; bottom: 20px; right: 20px; width: 100px; height: 100px; z-index: 10;"></canvas>
+
+  <canvas id="canvas" id="milnorFibration"></canvas>
   <script type="module" src="main.js"></script>
 </body>
 </html>
