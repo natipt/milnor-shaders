@@ -163,57 +163,59 @@ let baseShaderTemplate = `
         float accumulatedAlpha = 0.0;
       
         for (int i = 0; i < MAX_STEPS && accumulatedAlpha < 1.0; i++) {
-          vec3 p = ro + t * rd;
-          float d = fiberFunction(p);
-          float k = knotFunction(p);
-      
-          float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
-      
-          if (k < knotRadius) {
-            vec3 kn = getKnotNormal(p);
-            // float facing = dot(kn, -rd);
-            vec3 color = vec3(1.0);
-            return color;
-        }
+            vec3 p = ro + t * rd;
+            float d = fiberFunction(p);
+            float k = knotFunction(p);
         
+            float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
         
+            if (k < knotRadius) {
+                vec3 kn = getKnotNormal(p);
+                // float facing = dot(kn, -rd);
+                vec3 color = vec3(1.0);
+                return color;
+            }
       
-          if (d < SURFACE_THRESHOLD) {
-            vec3 normal = getNormal(p);
-            vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
-            vec3 viewDir = normalize(-rd);
-            vec3 halfVec = normalize(lightDir + viewDir);
-            float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
-            vec3 base = 0.5 + 0.5 * normal;
-            vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
-            
-            // Make alpha depend on t: close to screen = low opacity
-            float alpha = 1.0;
+            if (d < SURFACE_THRESHOLD) {
+                // if (cos(d) < 0.0) {
+                //     t += 0.002;
+                //     continue;
+                // }
+                vec3 normal = getNormal(p);
+                vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
+                vec3 viewDir = normalize(-rd);
+                vec3 halfVec = normalize(lightDir + viewDir);
+                float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
+                vec3 base = 0.5 + 0.5 * normal;
+                vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
+                
+                // Make alpha depend on t: close to screen = low opacity
+                float alpha = 1.0;
 
-            if (t < 0.6) {
-                alpha = smoothstep(0.3, 0.6, t) * 0.7;
-                if (alpha < 0.01) {
-                  t += 0.01; // skip this hit entirely
-                  continue;
+                if (t < 0.6) {
+                    alpha = smoothstep(0.3, 0.6, t) * 0.7;
+                    if (alpha < 0.01) {
+                        t += 0.01; // skip this hit entirely
+                        continue;
+                    }
                 }
-              }
+        
+                // Blend color into accumulator
+                accumulatedColor = mix(accumulatedColor, color, alpha * (1.0 - accumulatedAlpha));
+                accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
+            }
       
-            // Blend color into accumulator
-            accumulatedColor = mix(accumulatedColor, color, alpha * (1.0 - accumulatedAlpha));
-            accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
-          }
-      
-          if (t > MAX_DIST) break;
-      
-        //   reduce stepsize near the origin
-        //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
-        float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
+            if (t > MAX_DIST) break;
+        
+            //   reduce stepsize near the origin
+            //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
+            float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
 
-          t += stepSize;
+            t += stepSize;
         }
       
         return accumulatedColor;
-      }
+    }
       
       
       
@@ -281,6 +283,31 @@ canvas.addEventListener('mousemove', e => {
     lastY = e.clientY;
   }
 });
+
+// MOBILE SCROLLING
+canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+    }
+});
+  
+  canvas.addEventListener('touchmove', e => {
+    if (isDragging && e.touches.length === 1) {
+      const touch = e.touches[0];
+      yaw += (touch.clientX - lastX) * 0.005;
+      pitch += (touch.clientY - lastY) * 0.005;
+      lastX = touch.clientX;
+      lastY = touch.clientY;
+    }
+});
+  
+canvas.addEventListener('touchend', () => {
+    isDragging = false;
+});
+canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  
 
 // const ctx = canvas.getContext('2d');
 
