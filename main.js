@@ -126,7 +126,8 @@ const material = new THREE.ShaderMaterial({
         // if (k < KNOT_THRESHOLD) return vec3(1.0, 0.0, 0.0); // red for trefoil knot
 
         // bigger knot radius near origin
-        float knotRadius = 0.04 + 0.3 * exp(-dot(p, p));
+        // float knotRadius = 0.04 + 0.3 * exp(-dot(p, p));
+        float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
         // float knotRadius = KNOT_THRESHOLD + 0.5 / (1.0 + 7.0 * dot(p, p));
 
         if (k < knotRadius) {
@@ -170,7 +171,9 @@ const material = new THREE.ShaderMaterial({
         if (t > MAX_DIST) break;
 
         // reduce stepsize near origin
-        float stepSize = clamp(min(abs(d), k), 0.01, 0.2);
+        // float stepSize = clamp(min(abs(d), k), 0.01, 0.2);
+        float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
+
         t += stepSize;
 
         // t += min(d, k) * 0.5;
