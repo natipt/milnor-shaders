@@ -19,42 +19,83 @@ const uniforms = {
 };
 
 // Parse user poly
+// function parsePolynomial(expr) {
+//   expr = expr.replace(/\s+/g, '');
+//   const terms = expr.match(/[+-]?[^+-]+/g); // separate by +/- terms
+
+//   if (!terms) return 'vec2(0.0, 0.0)';
+
+//   let glsl = terms.map(term => {
+//     if (/^[+-]?\d*\.?\d*$/.test(term)) {
+//       // real constant
+//       return `vec2(${parseFloat(term)}, 0.0)`;
+//     }
+
+//     const match = term.match(/^([+-]?[\d\.]*)?(x|y)(\^(\d+))?$/);
+//     if (match) {
+//       let [, coeff, variable, , power] = match;
+//       coeff = coeff || '+1';
+//       if (coeff === '+') coeff = '1';
+//       if (coeff === '-') coeff = '-1';
+//       power = parseInt(power || '1');
+
+//       let base = variable;
+//       for (let i = 1; i < power; i++) {
+//         base = `complexMul(${base}, ${variable})`;
+//       }
+//       return `complexMul(vec2(${coeff}, 0.0), ${base})`;
+//     }
+
+//     if (term.includes('x') && term.includes('y')) {
+//       return `complexMul(${term.replace(/([xy])/g, 'vec2($1, 0.0)')})`;
+//     }
+
+//     return `vec2(0.0) /* unparsed: ${term} */`;
+//   });
+//   console.log(glsl.join(' + '));
+//   return glsl.join(' + ');
+// }
 function parsePolynomial(expr) {
-    expr = expr.replace(/\s+/g, '');
-    const terms = expr.match(/[+-]?[^+-]+/g); // separate by +/- terms
-  
-    if (!terms) return 'vec2(0.0, 0.0)';
-  
-    let glsl = terms.map(term => {
-      if (/^[+-]?\d*\.?\d*$/.test(term)) {
-        // real constant
-        return `vec2(${parseFloat(term)}, 0.0)`;
-      }
-  
-      const match = term.match(/^([+-]?[\d\.]*)?(x|y)(\^(\d+))?$/);
-      if (match) {
-        let [, coeff, variable, , power] = match;
-        coeff = coeff || '+1';
-        if (coeff === '+') coeff = '1';
-        if (coeff === '-') coeff = '-1';
-        power = parseInt(power || '1');
-  
-        let base = variable;
-        for (let i = 1; i < power; i++) {
-          base = `complexMul(${base}, ${variable})`;
-        }
-        return `complexMul(vec2(${coeff}, 0.0), ${base})`;
-      }
-  
-      if (term.includes('x') && term.includes('y')) {
-        return `complexMul(${term.replace(/([xy])/g, 'vec2($1, 0.0)')})`;
-      }
-  
+  expr = expr.replace(/\s+/g, '');
+  const terms = expr.match(/[+-]?[^+-]+/g); // separate by +/- terms
+
+  if (!terms) return 'vec2(0.0, 0.0)';
+
+  let glsl = terms.map(term => {
+    // Match constant or terms involving x and/or y
+    const match = term.match(/^([+-]?[\d\.]*)?((x(\^\d+)?)?(y(\^\d+)?)?|((y(\^\d+)?)?(x(\^\d+)?)))$/);
+
+    if (!match) {
+      console.log(`vec2(0.0) /* unparsed: ${term} */`);
       return `vec2(0.0) /* unparsed: ${term} */`;
-    });
-    console.log(glsl.join(' + '));
-    return glsl.join(' + ');
-  }
+    }
+
+    let coeff = match[1] || '+1';
+    if (coeff === '+') coeff = '1';
+    if (coeff === '-') coeff = '-1';
+
+    const xPart = term.match(/x(\^(\d+))?/);
+    const yPart = term.match(/y(\^(\d+))?/);
+
+    const xPow = xPart ? parseInt(xPart[2] || '1') : 0;
+    const yPow = yPart ? parseInt(yPart[2] || '1') : 0;
+
+    let result = `vec2(${parseFloat(coeff)}, 0.0)`;
+
+    for (let i = 0; i < xPow; i++) {
+      result = `complexMul(${result}, x)`;
+    }
+
+    for (let i = 0; i < yPow; i++) {
+      result = `complexMul(${result}, y)`;
+    }
+
+    return result;
+  });
+
+  return glsl.join(' + ');
+}
+
   
 
 function buildGLSLFunction(expr) {
