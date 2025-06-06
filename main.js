@@ -113,34 +113,34 @@ let baseShaderTemplate = `
     // REPLACE_F_FUNCTION
     
     float fiberFunction(vec3 p) {
-        vec4 s = stereographicInverse(p);
-        vec2 x = s.xy;
-        vec2 y = s.zw;
-        float norm = dot(x, x) + dot(y, y);
-        if (abs(norm - 1.0) > 0.1) return 1.0;
-        vec2 fxy = f(x, y); // Call dynamically defined function
-        float mag = length(fxy);
-        if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
-        vec2 fhat = fxy / mag; // normalize f to unit circle
-        // float pi = 3.1415926535897932384626433832795028841971693993751058209749445923078164062;
-        float pi = 3.14159265;
-        float diff = mod(arg(fhat) - theta + pi, 2.0 * pi) - pi;
-        // float diff = mod(arg(fhat) - theta, 6.28318);
-        return diff; // small only near the fiber
-        // return sin(diff);
-      }
+      vec4 s = stereographicInverse(p);
+      vec2 x = s.xy;
+      vec2 y = s.zw;
+      float norm = dot(x, x) + dot(y, y);
+      if (abs(norm - 1.0) > 0.1) return 1.0;
+      vec2 fxy = f(x, y); // Call dynamically defined function
+      float mag = length(fxy);
+      if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
+      vec2 fhat = fxy / mag; // normalize f to unit circle
+      // float pi = 3.1415926535897932384626433832795028841971693993751058209749445923078164062;
+      float pi = 3.14159265;
+      float diff = mod(arg(fhat) - theta + pi, 2.0 * pi) - pi;
+      // float diff = mod(arg(fhat) - theta, 2.0 * pi);
+      return diff; // small only near the fiber
+      // return sin(diff);
+    }
       
       
 
-      float knotFunction(vec3 p) {
-        vec4 s = stereographicInverse(p);
-        vec2 x = s.xy;
-        vec2 y = s.zw;
-        float norm = dot(x, x) + dot(y, y);
-        if (abs(norm - 1.0) > 0.1) return 1.0;
-        vec2 fxy = f(x,y);
-        return length(fxy);
-      }
+    float knotFunction(vec3 p) {
+      vec4 s = stereographicInverse(p);
+      vec2 x = s.xy;
+      vec2 y = s.zw;
+      float norm = dot(x, x) + dot(y, y);
+      if (abs(norm - 1.0) > 0.1) return 1.0;
+      vec2 fxy = f(x,y);
+      return length(fxy);
+    }
 
     vec3 getNormal(vec3 p) {
       float h = 0.001;
@@ -151,92 +151,86 @@ let baseShaderTemplate = `
     }
 
     vec3 getKnotNormal(vec3 p) {
-        float h = 0.001;
-        float dx = knotFunction(p + vec3(h,0,0)) - knotFunction(p - vec3(h,0,0));
-        float dy = knotFunction(p + vec3(0,h,0)) - knotFunction(p - vec3(0,h,0));
-        float dz = knotFunction(p + vec3(0,0,h)) - knotFunction(p - vec3(0,0,h));
-        return normalize(vec3(dx, dy, dz));
-      }
+      float h = 0.001;
+      float dx = knotFunction(p + vec3(h,0,0)) - knotFunction(p - vec3(h,0,0));
+      float dy = knotFunction(p + vec3(0,h,0)) - knotFunction(p - vec3(0,h,0));
+      float dz = knotFunction(p + vec3(0,0,h)) - knotFunction(p - vec3(0,0,h));
+      return normalize(vec3(dx, dy, dz));
+    }
   
 
-      vec3 raymarch(vec3 ro, vec3 rd) {
-        float t = 0.0;
-        vec3 accumulatedColor = vec3(0.0);
-        float accumulatedAlpha = 0.0;
+    vec3 raymarch(vec3 ro, vec3 rd) {
+      float t = 0.0;
+      vec3 accumulatedColor = vec3(0.0);
+      float accumulatedAlpha = 0.0;
       
-        for (int i = 0; i < MAX_STEPS && accumulatedAlpha < 1.0; i++) {
-            vec3 p = ro + t * rd;
-            float d = fiberFunction(p);
-            float k = knotFunction(p);
-        
-            float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
-        
-            if (k < knotRadius) {
-                vec3 kn = getKnotNormal(p);
-                // float facing = dot(kn, -rd);
-                vec3 color = vec3(1.0);
-                return color;
-            }
+      for (int i = 0; i < MAX_STEPS && accumulatedAlpha < 1.0; i++) {
+          vec3 p = ro + t * rd;
+          float d = fiberFunction(p);
+          float k = knotFunction(p);
       
-            if (d < SURFACE_THRESHOLD) {
-                // if (t < 1.0) {
-                //     t += 0.002;
-                //     continue;
-                // }
-                vec3 normal = getNormal(p);
-                vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
-                vec3 viewDir = normalize(-rd);
-                vec3 halfVec = normalize(lightDir + viewDir);
-                float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
-                vec3 base = 0.5 + 0.5 * normal;
-                vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
-                
-                // Make alpha depend on t: close to screen = low opacity
-                float alpha = 1.0;
+          float knotRadius = clamp(0.05 + 0.03 / (1.0 + 5.0 * dot(p, p)), 0.04, 0.08);
+      
+          if (k < knotRadius) {
+              vec3 kn = getKnotNormal(p);
+              // float facing = dot(kn, -rd);
+              vec3 color = vec3(1.0);
+              return color;
+          }
+    
+          if (d < SURFACE_THRESHOLD) {
+              // if (t < 1.0) {
+              //     t += 0.002;
+              //     continue;
+              // }
+              vec3 normal = getNormal(p);
+              vec3 lightDir = normalize(vec3(1.0, 1.0, 2.0));
+              vec3 viewDir = normalize(-rd);
+              vec3 halfVec = normalize(lightDir + viewDir);
+              float spec = pow(max(dot(normal, halfVec), 0.0), 64.0);
+              vec3 base = 0.5 + 0.5 * normal;
+              vec3 color = base + 0.1 * vec3(1.0) + vec3(1.0) * spec;
+              
+              // Make alpha depend on t: close to screen = low opacity
+              float alpha = 1.0;
 
-                if (t < 0.6) {
-                    alpha = smoothstep(0.3, 0.6, t) * 0.7;
-                    if (alpha < 0.01) {
-                        t += 0.01; // skip this hit entirely
-                        continue;
-                    }
-                }
-        
-                // Blend color into accumulator
-                accumulatedColor = mix(accumulatedColor, color, alpha * (1.0 - accumulatedAlpha));
-                accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
-            }
+              if (t < 0.6) {
+                  alpha = smoothstep(0.3, 0.6, t) * 0.7;
+                  if (alpha < 0.01) {
+                      t += 0.01; // skip this hit entirely
+                      continue;
+                  }
+              }
       
-            if (t > MAX_DIST) break;
-        
-            //   reduce stepsize near the origin
-            //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
-            float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
+              // Blend color into accumulator
+              accumulatedColor = mix(accumulatedColor, color, alpha * (1.0 - accumulatedAlpha));
+              accumulatedAlpha += alpha * (1.0 - accumulatedAlpha);
+          }
+    
+          if (t > MAX_DIST) break;
+      
+          //   reduce stepsize near the origin
+          //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
+          float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
 
-            t += stepSize;
-        }
-      
-        return accumulatedColor;
+          t += stepSize;
+      }
+    
+      return accumulatedColor;
     }
-      
-      
-      
 
     void main() {
-    //   vec2 uv = vUv * 2.0 - 1.0;
-    // vec2 uv = (vUv * 2.0 - 1.0) * 0.5;
-    vec2 aspect = vec2(resolution.x / resolution.y, 1.0);
-    vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5 / zoom; // multiply by something smaller to make it bigger
+      vec2 aspect = vec2(resolution.x / resolution.y, 1.0);
+      vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5 / zoom; // multiply by something smaller to make it bigger
 
+      vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
+      vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));  
+      
+      // // orthographic
+      // vec3 ro = cameraMatrix * vec3(uv, 3.0);     // ray origin varies with screen
+      // vec3 rd = normalize(cameraMatrix * vec3(0.0, 0.0, -1.0)); // fixed direction
 
-    //   vec3 ro = vec3(0.0, 0.0, 3.0);
-    //   vec3 rd = normalize(vec3(uv.x, uv.y, -2.0));
-    // vec3 rd = normalize(vec3(uv.x, uv.y, -1.0)); // less aggressive dive
-    vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
-    vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));
-
-
-    vec3 color = raymarch(ro, rd);
+      vec3 color = raymarch(ro, rd);
       gl_FragColor = vec4(color, 1.0);
     }
   `
