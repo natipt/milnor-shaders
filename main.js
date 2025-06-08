@@ -119,7 +119,7 @@ let baseShaderTemplate = `
 
 
     // Constants for raymarching
-    #define MAX_STEPS 1000
+    #define MAX_STEPS 1500
     // #define SURFACE_THRESHOLD 0.01
     #define SURFACE_THRESHOLD 0.01
     #define KNOT_THRESHOLD 0.1
@@ -159,11 +159,10 @@ let baseShaderTemplate = `
       vec2 y = s.zw;
       float norm = dot(x, x) + dot(y, y);
       if (abs(norm - 1.0) > 0.1) return 1.0;
-      vec2 fxy = f(x, y); // Call dynamically defined function
+      vec2 fxy = complexMul(f(x, y), vec2(0.25, 0.0)); // Call dynamically defined function
       float mag = length(fxy);
       if (mag < 1e-10) return 1.0; // avoid division by zero near the knot
       vec2 fhat = fxy / mag; // normalize f to unit circle
-      // float pi = 3.1415926535897932384626433832795028841971693993751058209749445923078164062;
       float pi = 3.14159265;
 
       // Rotate fxy by e^{-iθ}
@@ -176,15 +175,6 @@ let baseShaderTemplate = `
   
       // Check if imaginary part is close to 0
       return abs(aligned.y);
-
-      // return length(vec2(sin(arg(10.0 * fxy)), cos(arg(10.0 * fxy))) - vec2(cos(theta), sin(theta)));
-      // float angleDiff = mod(arg(fxy) - theta + 3.14159265, 6.2831853) - 3.14159265;
-      // return abs(angleDiff);
-      // float diff = length(fhat - vec2(cos(theta), sin(theta)));
-      // float diff = mod(arg(fhat) - theta + pi, 2.0 * pi) - pi;
-      // float diff = mod(arg(fhat) - theta, 2.0 * pi);
-      // return diff; // small only near the fiber
-      // return cos(diff);
     }
       
 
@@ -278,12 +268,13 @@ let baseShaderTemplate = `
       vec2 aspect = vec2(resolution.x / resolution.y, 1.0);
       vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5 / zoom; // multiply by something smaller to make it bigger
 
-      vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
-      vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));  
+      // // perspective
+      // vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
+      // vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));  
       
-      // // orthographic
-      // vec3 ro = cameraMatrix * vec3(uv, 3.0);     // ray origin varies with screen
-      // vec3 rd = normalize(cameraMatrix * vec3(0.0, 0.0, -1.0)); // fixed direction
+      // orthographic
+      vec3 ro = cameraMatrix * vec3(uv, 3.0);     // ray origin varies with screen
+      vec3 rd = normalize(cameraMatrix * vec3(0.0, 0.0, -1.0)); // fixed direction
 
       vec3 color = raymarch(ro, rd);
       gl_FragColor = vec4(color, 1.0);
