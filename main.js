@@ -11,23 +11,11 @@ const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
 camera.position.z = 1;
 
 // Shader uniforms
-// const uniforms = {
-//   epsilon: { value: new THREE.Vector2(0.1, 0.0) }, // complex constant epsilon = 0.1
-//   theta: { value: Math.PI }, // initial angle for Milnor fiber
-//   time: { value: 0.0 }, // animated time
-//   zoom: {value: 1.0}
-// };
-
 const uniforms = {
-  epsilon: { value: new THREE.Vector2(0.1, 0.0) },
-  theta: { value: Math.PI },
-  time: { value: 0.0 },
-  zoom: { value: 1.0 },
-  cameraMatrix: { value: new THREE.Matrix3() },
-  resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-  projectionRotation: {
-    value: new THREE.Matrix4().fromArray(makeHouseholderToNorthPole([1, 0, 0, 0]))
-  }
+  epsilon: { value: new THREE.Vector2(0.1, 0.0) }, // complex constant epsilon = 0.1
+  theta: { value: Math.PI }, // initial angle for Milnor fiber
+  time: { value: 0.0 }, // animated time
+  zoom: {value: 1.0}
 };
 
 // Parse user poly
@@ -129,52 +117,23 @@ let baseShaderTemplate = `
     uniform mat3 cameraMatrix;
     uniform float zoom;
 
-    uniform mat4 projectionRotation;
-
-//     mat4 makeHouseholderToNorthPole(vec4 q) {
-//       vec4 north = vec4(0.0, 0.0, 0.0, 1.0);
-//       vec4 v = normalize(q - north);
-//       mat4 R = mat4(1.0) - 2.0 * outerProduct(v, v);
-//       return R;
-//   }
-//   mat4 outerProduct(vec4 a, vec4 b) {
-//     return mat4(
-//         a.x * b.x, a.x * b.y, a.x * b.z, a.x * b.w,
-//         a.y * b.x, a.y * b.y, a.y * b.z, a.y * b.w,
-//         a.z * b.x, a.z * b.y, a.z * b.z, a.z * b.w,
-//         a.w * b.x, a.w * b.y, a.w * b.z, a.w * b.w
-//     );
-// }
-  
-
-  vec4 stereographicInverse(vec3 p) {
-      float denom = 1.0 + dot(p, p);
-      vec4 s = vec4(
-          2.0 * p.x / denom,
-          2.0 * p.y / denom,
-          2.0 * p.z / denom,
-          (dot(p, p) - 1.0) / denom
-      );
-      return projectionRotation * s;
-  }
-
 
     // Constants for raymarching
-    #define MAX_STEPS 200
+    #define MAX_STEPS 1000
     // #define SURFACE_THRESHOLD 0.01
     #define SURFACE_THRESHOLD 0.01
     #define KNOT_THRESHOLD 0.1
     #define MAX_DIST 10.0
     #define NEAR_CLIP 0.4
 
-    // vec4 stereographicInverse(vec3 p) {
-    //   float denom = 1.0 + dot(p, p);
-    //   float xr = 2.0 * p.x / denom;
-    //   float xi = 2.0 * p.y / denom;
-    //   float yr = 2.0 * p.z / denom;
-    //   float yi = (dot(p, p) - 1.0) / denom;
-    //   return vec4(xr, xi, yr, yi);
-    // }
+    vec4 stereographicInverse(vec3 p) {
+      float denom = 1.0 + dot(p, p);
+      float xr = 2.0 * p.x / denom;
+      float xi = 2.0 * p.y / denom;
+      float yr = 2.0 * p.z / denom;
+      float yi = (dot(p, p) - 1.0) / denom;
+      return vec4(xr, xi, yr, yi);
+    }
 
     vec2 complexAdd(vec2 a, vec2 b) {
       return a + b;
@@ -206,8 +165,22 @@ let baseShaderTemplate = `
       vec2 fhat = fxy / mag; // normalize f to unit circle
       // float pi = 3.1415926535897932384626433832795028841971693993751058209749445923078164062;
       float pi = 3.14159265;
-      return length(vec2(sin(arg(fxy)), cos(arg(fxy))) - vec2(cos(theta), sin(theta)));
-      float diff = length(fhat - vec2(cos(theta), sin(theta)));
+
+      // Rotate fxy by e^{-iθ}
+      // Rotate fxy by e^{-iθ}
+      vec2 rotator = vec2(cos(theta), -sin(theta));
+      vec2 aligned = complexMul(fxy, rotator);
+  
+      // Only consider aligned vectors that point in positive real direction
+      if (aligned.x <= 0.0) return 1.0;
+  
+      // Check if imaginary part is close to 0
+      return abs(aligned.y);
+
+      // return length(vec2(sin(arg(10.0 * fxy)), cos(arg(10.0 * fxy))) - vec2(cos(theta), sin(theta)));
+      // float angleDiff = mod(arg(fxy) - theta + 3.14159265, 6.2831853) - 3.14159265;
+      // return abs(angleDiff);
+      // float diff = length(fhat - vec2(cos(theta), sin(theta)));
       // float diff = mod(arg(fhat) - theta + pi, 2.0 * pi) - pi;
       // float diff = mod(arg(fhat) - theta, 2.0 * pi);
       // return diff; // small only near the fiber
@@ -292,7 +265,7 @@ let baseShaderTemplate = `
           //   reduce stepsize near the origin
           //   float stepSize = clamp(min(abs(d), k), 0.002, 0.05);
           // float stepSize = clamp(min(abs(d), k), 0.001, 0.05); // tighter min
-          float stepSize = clamp(min(abs(d), k), 0.0005, 0.05);
+          float stepSize = clamp(min(abs(d), k), 0.0001, 0.005);
 
 
           t += stepSize;
@@ -569,34 +542,6 @@ slider.addEventListener('touchmove', (e) => {
 slider.addEventListener('touchend', () => draggingSlider = false);
 
 
-function sub4(a, b) {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2], a[3] - b[3]];
-}
-
-function normalize4(v) {
-  const len = Math.hypot(v[0], v[1], v[2], v[3]);
-  return len > 0.0 ? v.map(x => x / len) : [0, 0, 0, 0];
-}
-
-function makeHouseholderToNorthPole(q) {
-  const north = [0, 0, 0, 1];
-  const v = normalize4(sub4(q, north));
-  const R = [];
-
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 4; j++) {
-      R.push(i === j ? 1 - 2 * v[i] * v[j] : -2 * v[i] * v[j]);
-    }
-  }
-
-  return R; // Flat array of 16 values
-}
-material.uniforms.projectionRotation = {
-  value: new THREE.Matrix4().fromArray(makeHouseholderToNorthPole([1, 0, 0, 0]))
-};
-console.log(makeHouseholderToNorthPole([1, 0, 0, 0]));
-
-
 
 function animate(time) {
     if (!isPaused && !draggingSlider) {
@@ -608,15 +553,8 @@ function animate(time) {
 
     drawPhaseSlider(uniforms.theta.value);
 
-    // material.uniforms.projectionRotation = {
-    //   value: new THREE.Matrix4().fromArray(makeHouseholderToNorthPole([1, 0, 0, 0]))
-    // };
-    
-
     // uniforms.theta.value = 0.0;
-    // uniforms.resolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
-    uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
-
+    uniforms.resolution = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) };
     const cosY = Math.cos(yaw), sinY = Math.sin(yaw);
     const cosP = Math.cos(pitch), sinP = Math.sin(pitch);
     const xAxis = new THREE.Vector3(cosY, 0, -sinY);
