@@ -15,46 +15,11 @@ const uniforms = {
   epsilon: { value: new THREE.Vector2(0.1, 0.0) }, // complex constant epsilon = 0.1
   theta: { value: Math.PI }, // initial angle for Milnor fiber
   time: { value: 0.0 }, // animated time
-  zoom: {value: 1.0}
+  zoom: {value: 0.5},
+  useOrtho: {value: true}
 };
 
-// Parse user poly
-// function parsePolynomial(expr) {
-//   expr = expr.replace(/\s+/g, '');
-//   const terms = expr.match(/[+-]?[^+-]+/g); // separate by +/- terms
 
-//   if (!terms) return 'vec2(0.0, 0.0)';
-
-//   let glsl = terms.map(term => {
-//     if (/^[+-]?\d*\.?\d*$/.test(term)) {
-//       // real constant
-//       return `vec2(${parseFloat(term)}, 0.0)`;
-//     }
-
-//     const match = term.match(/^([+-]?[\d\.]*)?(x|y)(\^(\d+))?$/);
-//     if (match) {
-//       let [, coeff, variable, , power] = match;
-//       coeff = coeff || '+1';
-//       if (coeff === '+') coeff = '1';
-//       if (coeff === '-') coeff = '-1';
-//       power = parseInt(power || '1');
-
-//       let base = variable;
-//       for (let i = 1; i < power; i++) {
-//         base = `complexMul(${base}, ${variable})`;
-//       }
-//       return `complexMul(vec2(${coeff}, 0.0), ${base})`;
-//     }
-
-//     if (term.includes('x') && term.includes('y')) {
-//       return `complexMul(${term.replace(/([xy])/g, 'vec2($1, 0.0)')})`;
-//     }
-
-//     return `vec2(0.0) /* unparsed: ${term} */`;
-//   });
-//   console.log(glsl.join(' + '));
-//   return glsl.join(' + ');
-// }
 function parsePolynomial(expr) {
   expr = expr.replace(/\s+/g, '');
   const terms = expr.match(/[+-]?[^+-]+/g); // separate by +/- terms
@@ -96,7 +61,6 @@ function parsePolynomial(expr) {
   return glsl.join(' + ');
 }
 
-  
 
 function buildGLSLFunction(expr) {
     const body = parsePolynomial(expr);
@@ -108,7 +72,8 @@ function buildGLSLFunction(expr) {
 }
 
 let baseShaderTemplate = `
-    precision highp float;
+    // precision highp float;
+    precision mediump float;
     varying vec2 vUv;
     uniform vec2 epsilon;
     uniform float theta;
@@ -116,6 +81,8 @@ let baseShaderTemplate = `
     uniform vec2 resolution;
     uniform mat3 cameraMatrix;
     uniform float zoom;
+    uniform bool useOrtho;
+
 
 
     // Constants for raymarching
@@ -238,7 +205,7 @@ let baseShaderTemplate = `
               float alpha = 1.0;
 
               if (t < 0.6) {
-                  alpha = smoothstep(0.3, 0.6, t) * 0.7;
+                  // alpha = smoothstep(0.3, 0.6, t) * 0.7;
                   if (alpha < 0.01) {
                       t += 0.01; // skip this hit entirely
                       continue;
@@ -268,14 +235,17 @@ let baseShaderTemplate = `
       vec2 aspect = vec2(resolution.x / resolution.y, 1.0);
       vec2 uv = (vUv * 2.0 - 1.0) * aspect * 1.5 / zoom; // multiply by something smaller to make it bigger
 
-      // // perspective
-      // vec3 ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
-      // vec3 rd = normalize(cameraMatrix * vec3(uv, -1.0));  
-      
-      // orthographic
-      vec3 ro = cameraMatrix * vec3(uv, 3.0);     // ray origin varies with screen
-      vec3 rd = normalize(cameraMatrix * vec3(0.0, 0.0, -1.0)); // fixed direction
+      vec3 ro, rd;
 
+      if (useOrtho) {
+        // orthographic
+        ro = cameraMatrix * vec3(uv, 3.0);     // ray origin varies with screen
+        rd = normalize(cameraMatrix * vec3(0.0, 0.0, -1.0)); // fixed direction
+      } else {
+        // perspective
+        ro = cameraMatrix * vec3(0.0, 0.0, 3.0);
+        rd = normalize(cameraMatrix * vec3(uv, -1.0));  
+      }
       vec3 color = raymarch(ro, rd);
       gl_FragColor = vec4(color, 1.0);
     }
@@ -350,22 +320,8 @@ canvas.addEventListener('touchend', () => {
     isDragging = false;
 });
 canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-  
 
-// const ctx = canvas.getContext('2d');
-
-// function resizeCanvas() {
-//   canvas.width = window.innerWidth;
-//   canvas.height = window.innerHeight;
-
-  // Optional: Redraw or re-render if needed
-//   render();
-// }
-
-// Call it once to set the size initially
-// resizeCanvas();
-
-// Resize again whenever the window size changes
+// Resize canvas whenever the window size changes
 window.addEventListener('resize', () => {
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -532,15 +488,39 @@ slider.addEventListener('touchmove', (e) => {
 }, { passive: false });
 slider.addEventListener('touchend', () => draggingSlider = false);
 
+// ======= Ortho trigger =======
+const orthoToggle = document.getElementById('orthoToggle');
+const orthoThumb = document.getElementById('orthoThumb');
+let useOrtho = true;
+
+// sync checked satte
+orthoThumb.style.left = useOrtho ? '21px' : '1px';
+
+orthoToggle.addEventListener('change', () => {
+  const wasOrtho = useOrtho;
+  useOrtho = orthoToggle.checked;
+  orthoThumb.style.left = useOrtho ? '21px' : '1px';
+
+  // Adjust zoom to maintain visual scale
+  if (useOrtho && !wasOrtho) {
+    uniforms.zoom.value *= 0.4;
+  } else if (!useOrtho && wasOrtho) {
+    uniforms.zoom.value *= 2.5;
+  }
+});
+
 
 
 function animate(time) {
+    uniforms.useOrtho.value = useOrtho;
+
     if (!isPaused && !draggingSlider) {
         uniforms.time.value = time * 0.001;
         uniforms.theta.value = (0.0003 * time + thetaOffset) % (2.0 * Math.PI);
     } else if (draggingSlider && manualTheta !== null) {
         uniforms.theta.value = manualTheta < 0 ? manualTheta + 2 * Math.PI : manualTheta;
     }
+  
 
     drawPhaseSlider(uniforms.theta.value);
 
